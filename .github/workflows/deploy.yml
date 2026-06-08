@@ -26,6 +26,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # 配置 GitHub Pages
+      # 作用：让 GitHub Pages 自定义工作流获得 Pages 相关元数据
+      # 不是构建 Quartz，而是为后面的 upload/deploy 做 Pages 配置
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
       # 安装 Node.js
       # Quartz 5 要求 Node 22+，这里用 24
       - uses: actions/setup-node@v6
@@ -66,9 +72,10 @@ jobs:
 
       # 上传 public 目录给 GitHub Pages
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: public
+          
 
   deploy:
     needs: build
