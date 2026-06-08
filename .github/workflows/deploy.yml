@@ -1,0 +1,85 @@
+name: Deploy Quartz site to GitHub Pages
+
+on:
+  push:
+    branches:
+      - v5
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 拉取仓库代码
+      # fetch-depth: 0 是为了保留完整 Git 历史，Quartz 才能更准确读取修改时间
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # 安装 Node.js
+      # Quartz 5 要求 Node 22+，这里用 24
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # 缓存 npm 依赖，加快之后的构建
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      # 缓存 Quartz 插件
+      # Quartz 5 的插件是外部插件，缓存后之后构建会更快
+      - name: Cache Quartz plugins
+        uses: actions/cache@v5
+        with:
+          path: .quartz/plugins
+          key: ${{ runner.os }}-plugins-${{ hashFiles('quartz.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-plugins-
+
+      # 安装 package-lock.json 中锁定的依赖
+      - name: Install Dependencies
+        run: npm ci
+
+      # 安装 quartz.config.yaml 中声明的 Quartz 插件
+      - name: Install Quartz plugins
+        run: npx quartz plugin install
+
+      # 构建静态网站
+      # 默认读取 content/，输出到 public/
+      - name: Build Quartz
+        run: npx quartz build
+
+      # 上传 public 目录给 GitHub Pages
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      # 正式部署到 GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
